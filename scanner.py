@@ -287,3 +287,4 @@ if __name__ == "__main__":
         raise RuntimeError("Telegram secrets missing")
 
     asyncio.run(main())
+
