@@ -6,9 +6,9 @@ import time
 import requests
 import websockets
 
-# ==================================
-# FILTERED PUMP.FUN SCANNER V2
-# ==================================
+# ==========================================
+# PUMP.FUN FILTERED SCANNER V3
+# ==========================================
 
 MIN_MARKET_CAP = 5000
 MAX_MARKET_CAP = 50000
@@ -17,6 +17,11 @@ MAX_POOL_AGE_MINUTES = 10
 MAX_RUGCHECK_SCORE = 20
 MAX_TOP_HOLDER_PCT = 10
 MAX_TOP_10_PCT = 35
+
+RUN_SECONDS = 230
+POOL_WAIT_SECONDS = 180
+POLL_INTERVAL = 12
+MAX_PENDING = 80
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -27,13 +32,15 @@ RUG_REPORT_URL = "https://api.rugcheck.xyz/v1/tokens/{}/report"
 RUG_SUMMARY_URL = "https://api.rugcheck.xyz/v1/tokens/{}/report/summary"
 
 session = requests.Session()
-session.headers.update({"User-Agent": "PumpFun-Filtered-Scanner-V2"})
+session.headers.update({"User-Agent": "PumpFun-Filtered-Scanner-V3"})
 
 checked = set()
+active = set()
+semaphore = asyncio.Semaphore(6)
 
 
 def get_json(url):
-    response = session.get(url, timeout=15)
+    response = session.get(url, timeout=12)
     response.raise_for_status()
     return response.json()
 
@@ -46,200 +53,223 @@ def send_telegram(message):
 
     response = requests.post(
         url,
-        json={
-            "chat_id": CHAT_ID,
-            "text": message
-        },
+        json={"chat_id": CHAT_ID, "text": message},
         timeout=15
     )
-
     response.raise_for_status()
-    print("V2 Telegram alert sent")
+    print("V3 TELEGRAM ALERT SENT")
 
 
 def check_coin(token):
     mint = token.get("mint")
 
     if not mint:
-        return None
+        return "reject", None
 
+    # 1. DEX POOL CHECK
     try:
-        # 1. DEXSCREENER CHECK
         pairs = get_json(DEX_URL.format(mint))
+    except Exception as error:
+        print("V3 WAIT: DEX API error", mint, str(error))
+        return "wait", None
 
-        if not isinstance(pairs, list) or not pairs:
-            print("V2 SKIP: No DEX pool", mint)
-            return None
+    if not isinstance(pairs, list) or not pairs:
+        print("V3 WAIT: Pool not created yet", mint)
+        return "wait", None
 
-        pairs = [
-            p for p in pairs
-            if p.get("chainId") == "solana"
-            and p.get("baseToken", {}).get("address") == mint
-        ]
+    pairs = [
+        p for p in pairs
+        if p.get("chainId") == "solana"
+        and p.get("baseToken", {}).get("address") == mint
+    ]
 
-        if not pairs:
-            print("V2 SKIP: No matching pool", mint)
-            return None
+    if not pairs:
+        print("V3 WAIT: Matching pool not found", mint)
+        return "wait", None
 
-        pair = max(
-            pairs,
-            key=lambda p: (p.get("liquidity") or {}).get("usd") or 0
-        )
+    pair = max(
+        pairs,
+        key=lambda p: (p.get("liquidity") or {}).get("usd") or 0
+    )
 
-        market_cap = pair.get("marketCap")
-        liquidity = (pair.get("liquidity") or {}).get("usd")
-        created_at = pair.get("pairCreatedAt")
+    market_cap = pair.get("marketCap")
+    liquidity = (pair.get("liquidity") or {}).get("usd")
+    created_at = pair.get("pairCreatedAt")
 
-        if market_cap is None or liquidity is None or created_at is None:
-            print("V2 SKIP: Missing DEX data", mint)
-            return None
+    if market_cap is None or liquidity is None or created_at is None:
+        return "wait", None
 
-        market_cap = float(market_cap)
-        liquidity = float(liquidity)
+    market_cap = float(market_cap)
+    liquidity = float(liquidity)
 
-        pool_age = (
-            time.time() * 1000 - float(created_at)
-        ) / 60000
+    pool_age = (
+        time.time() * 1000 - float(created_at)
+    ) / 60000
 
-        if not MIN_MARKET_CAP <= market_cap <= MAX_MARKET_CAP:
-            print("V2 SKIP: Market cap", mint)
-            return None
+    if not MIN_MARKET_CAP <= market_cap <= MAX_MARKET_CAP:
+        print("V3 REJECT: Market cap", mint)
+        return "reject", None
 
-        if liquidity < MIN_LIQUIDITY:
-            print("V2 SKIP: Liquidity", mint)
-            return None
+    if liquidity < MIN_LIQUIDITY:
+        print("V3 REJECT: Liquidity", mint)
+        return "reject", None
 
-        if pool_age < 0 or pool_age > MAX_POOL_AGE_MINUTES:
-            print("V2 SKIP: Pool age", mint)
-            return None
+    if pool_age < 0 or pool_age > MAX_POOL_AGE_MINUTES:
+        print("V3 REJECT: Pool age", mint)
+        return "reject", None
 
-        # 2. RUGCHECK
+    # 2. RUGCHECK
+    try:
         report = get_json(RUG_REPORT_URL.format(mint))
         summary = get_json(RUG_SUMMARY_URL.format(mint))
+    except Exception as error:
+        print("V3 WAIT: RugCheck API error", mint, str(error))
+        return "wait", None
 
-        if not isinstance(report, dict) or not isinstance(summary, dict):
-            print("V2 SKIP: Invalid RugCheck data", mint)
-            return None
+    if not isinstance(report, dict) or not isinstance(summary, dict):
+        return "wait", None
 
-        score = summary.get("score_normalised")
+    score = summary.get("score_normalised")
 
-        if score is None or float(score) > MAX_RUGCHECK_SCORE:
-            print("V2 SKIP: RugCheck score", mint)
-            return None
+    if score is None:
+        return "wait", None
 
-        # 3. MINT AND FREEZE AUTHORITY
-        token_info = report.get("token") or {}
+    if float(score) > MAX_RUGCHECK_SCORE:
+        print("V3 REJECT: RugCheck score", mint)
+        return "reject", None
 
-        mint_authority = report.get("mintAuthority")
-        if mint_authority is None:
-            mint_authority = token_info.get("mintAuthority")
+    # 3. MINT AND FREEZE AUTHORITY
+    token_info = report.get("token") or {}
 
-        freeze_authority = report.get("freezeAuthority")
-        if freeze_authority is None:
-            freeze_authority = token_info.get("freezeAuthority")
+    mint_authority = report.get("mintAuthority")
+    if mint_authority is None:
+        mint_authority = token_info.get("mintAuthority")
 
-        if (
-            "mintAuthority" not in report
-            and "mintAuthority" not in token_info
-        ):
-            print("V2 SKIP: Mint authority unknown", mint)
-            return None
+    freeze_authority = report.get("freezeAuthority")
+    if freeze_authority is None:
+        freeze_authority = token_info.get("freezeAuthority")
 
-        if (
-            "freezeAuthority" not in report
-            and "freezeAuthority" not in token_info
-        ):
-            print("V2 SKIP: Freeze authority unknown", mint)
-            return None
+    if (
+        "mintAuthority" not in report
+        and "mintAuthority" not in token_info
+    ):
+        return "reject", None
 
-        if mint_authority is not None or freeze_authority is not None:
-            print("V2 SKIP: Active authority", mint)
-            return None
+    if (
+        "freezeAuthority" not in report
+        and "freezeAuthority" not in token_info
+    ):
+        return "reject", None
 
-        # 4. HOLDER CHECK
-        holders = report.get("topHolders")
+    if mint_authority is not None or freeze_authority is not None:
+        print("V3 REJECT: Active authority", mint)
+        return "reject", None
 
-        if not isinstance(holders, list) or len(holders) < 10:
-            print("V2 SKIP: Holder data incomplete", mint)
-            return None
+    # 4. HOLDER CHECK
+    holders = report.get("topHolders")
 
-        percentages = []
+    if not isinstance(holders, list) or len(holders) < 10:
+        return "wait", None
 
+    percentages = []
+
+    try:
         for holder in holders[:10]:
             pct = holder.get("pct")
-
             if pct is None:
-                print("V2 SKIP: Holder percentage missing", mint)
-                return None
-
+                return "wait", None
             percentages.append(float(pct))
+    except (ValueError, TypeError):
+        return "wait", None
 
-        biggest_holder = max(percentages)
-        top_10_total = sum(percentages)
+    biggest_holder = max(percentages)
+    top_10_total = sum(percentages)
 
-        if biggest_holder >= MAX_TOP_HOLDER_PCT:
-            print("V2 SKIP: Biggest holder concentration", mint)
-            return None
+    if biggest_holder >= MAX_TOP_HOLDER_PCT:
+        return "reject", None
 
-        if top_10_total >= MAX_TOP_10_PCT:
-            print("V2 SKIP: Top 10 concentration", mint)
-            return None
+    if top_10_total >= MAX_TOP_10_PCT:
+        return "reject", None
 
-        # 5. PASSED FILTERS
-        name = (
-            token.get("name")
-            or pair.get("baseToken", {}).get("name")
-            or "Unknown"
-        )
+    # 5. PASSED FILTERS
+    name = (
+        token.get("name")
+        or pair.get("baseToken", {}).get("name")
+        or "Unknown"
+    )
 
-        symbol = (
-            token.get("symbol")
-            or pair.get("baseToken", {}).get("symbol")
-            or "Unknown"
-        )
+    symbol = (
+        token.get("symbol")
+        or pair.get("baseToken", {}).get("symbol")
+        or "Unknown"
+    )
 
-        message = (
-            "🟢 FILTERED SCANNER V2 - PASSED\n\n"
-            f"Name: {name}\n"
-            f"Symbol: {symbol}\n"
-            f"Market Cap: ${market_cap:,.0f}\n"
-            f"Liquidity: ${liquidity:,.0f}\n"
-            f"Pool Age: {pool_age:.1f} minutes\n"
-            f"RugCheck Score: {score}\n"
-            f"Biggest Holder: {biggest_holder:.2f}%\n"
-            f"Top 10 Holders: {top_10_total:.2f}%\n"
-            "Mint Authority: Revoked\n"
-            "Freeze Authority: Revoked\n\n"
-            f"Contract:\n{mint}\n\n"
-            f"https://pump.fun/coin/{mint}"
-        )
+    message = (
+        "🟢 PUMP.FUN SCANNER V3 - PASSED\n\n"
+        f"Name: {name}\n"
+        f"Symbol: {symbol}\n"
+        f"Market Cap: ${market_cap:,.0f}\n"
+        f"Liquidity: ${liquidity:,.0f}\n"
+        f"Pool Age: {pool_age:.1f} minutes\n"
+        f"RugCheck Score: {score}\n"
+        f"Biggest Holder: {biggest_holder:.2f}%\n"
+        f"Top 10 Holders: {top_10_total:.2f}%\n"
+        "Mint Authority: Revoked\n"
+        "Freeze Authority: Revoked\n\n"
+        f"Contract:\n{mint}\n\n"
+        f"https://pump.fun/coin/{mint}\n"
+        f"https://dexscreener.com/solana/{mint}"
+    )
 
-        return message
-
-    except Exception as error:
-        print("V2 SKIP: API/data error", mint, str(error))
-        return None
+    return "passed", message
 
 
-async def handle_token(token):
+async def watch_token(token, run_end):
     mint = token.get("mint")
 
-    if not mint or mint in checked:
+    if not mint:
         return
 
-    checked.add(mint)
+    try:
+        deadline = min(
+            time.time() + POOL_WAIT_SECONDS,
+            run_end - 3
+        )
 
-    message = await asyncio.to_thread(check_coin, token)
+        print("V3 WATCHING:", mint)
 
-    if message:
-        try:
-            await asyncio.to_thread(send_telegram, message)
-        except Exception as error:
-            print("V2 Telegram error:", str(error))
+        while time.time() < deadline:
+
+            async with semaphore:
+                status, message = await asyncio.to_thread(
+                    check_coin, token
+                )
+
+            if status == "passed":
+                try:
+                    await asyncio.to_thread(send_telegram, message)
+                    checked.add(mint)
+                except Exception as error:
+                    print("V3 TELEGRAM ERROR:", str(error))
+                return
+
+            if status == "reject":
+                checked.add(mint)
+                return
+
+            await asyncio.sleep(POLL_INTERVAL)
+
+        print("V3 WAIT EXPIRED:", mint)
+
+    finally:
+        active.discard(mint)
 
 
 async def main():
-    print("FILTERED SCANNER V2 STARTED")
+    print("PUMP.FUN FILTERED SCANNER V3 STARTED")
+
+    run_end = time.time() + RUN_SECONDS
+    tasks = set()
 
     async with websockets.connect(
         PUMPPORTAL_WS,
@@ -248,38 +278,71 @@ async def main():
         close_timeout=10
     ) as ws:
 
-        await ws.send(
-            json.dumps({"method": "subscribeNewToken"})
-        )
+        await ws.send(json.dumps({
+            "method": "subscribeNewToken"
+        }))
 
-        print("V2 subscribed to Pump.fun")
+        await ws.send(json.dumps({
+            "method": "subscribeMigration"
+        }))
 
-        tasks = set()
-        end_time = time.time() + 190
+        print("V3 SUBSCRIBED TO NEW TOKENS")
+        print("V3 SUBSCRIBED TO MIGRATIONS")
 
-        while time.time() < end_time:
+        while time.time() < run_end - 5:
+
             try:
                 raw = await asyncio.wait_for(
                     ws.recv(),
-                    timeout=max(1, end_time - time.time())
+                    timeout=max(1, run_end - time.time() - 5)
                 )
 
                 data = json.loads(raw)
 
-                if data.get("txType") != "create":
+                if not isinstance(data, dict):
                     continue
 
-                task = asyncio.create_task(handle_token(data))
+                mint = data.get("mint")
+
+                if not mint:
+                    continue
+
+                if mint in checked or mint in active:
+                    continue
+
+                if len(active) >= MAX_PENDING:
+                    print("V3 PENDING LIMIT REACHED")
+                    continue
+
+                active.add(mint)
+
+                task = asyncio.create_task(
+                    watch_token(data, run_end)
+                )
+
                 tasks.add(task)
                 task.add_done_callback(tasks.discard)
 
             except asyncio.TimeoutError:
                 break
 
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            except Exception as error:
+                print("V3 WEBSOCKET ERROR:", str(error))
+                break
 
-    print("FILTERED SCANNER V2 FINISHED")
+    if tasks:
+        remaining = max(0, run_end - time.time() - 2)
+
+        if remaining:
+            _, pending = await asyncio.wait(
+                tasks,
+                timeout=remaining
+            )
+
+            for task in pending:
+                task.cancel()
+
+    print("FILTERED SCANNER V3 FINISHED")
 
 
 if __name__ == "__main__":
@@ -287,4 +350,3 @@ if __name__ == "__main__":
         raise RuntimeError("Telegram secrets missing")
 
     asyncio.run(main())
-
