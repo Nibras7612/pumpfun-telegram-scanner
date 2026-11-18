@@ -448,15 +448,6 @@
     },
     "first_seen": 1795018675.553231
   },
-  "7LF1BYtegaALQ5oWbNHGMTNUcJnYHyuJXY6XyMFtpump": {
-    "token": {
-      "signature": "3yjz6D25G2t9pEyFDHsDPcSY88kuNfTMvSiesDKaAhYvYUP1f9AaHvGqg3uhrumanT4nprwFo1hVFWEJvggohhCo",
-      "mint": "7LF1BYtegaALQ5oWbNHGMTNUcJnYHyuJXY6XyMFtpump",
-      "txType": "migrate",
-      "pool": "pump-amm"
-    },
-    "first_seen": 1795018676.2282703
-  },
   "9ydaadF9F2dz9kVMiYzUa5tCxqBxjgD5RFBpacMhPqaS": {
     "token": {
       "signature": "3nCKv76bbxrW1vR9C4pdyjnmKFM4adnSb4CVjJPNVfWqpTM5dZH7sSRRKxr65wsGTsiznCJgKTi3URAbdeSjopWp",
@@ -705,5 +696,453 @@
       "pool": "pump"
     },
     "first_seen": 1795018760.694653
+  },
+  "7PXyCK8HZxAA1wQmE9Cp5oErZ9BHuyxj2kKRNhG4pump": {
+    "token": {
+      "signature": "5iw1bwGNKS4wRWgAF4cZLGtaincHoupNw1SDKchrxZ7SXgB9Ss4vfpU9ru41oFCZcsUeceJzq1ubHL91bMcG9gxB",
+      "mint": "7PXyCK8HZxAA1wQmE9Cp5oErZ9BHuyxj2kKRNhG4pump",
+      "traderPublicKey": "HnjiM8mrUa9hXXRHzyz2pipRZNwWZ9WEDZhTo1TD4PQp",
+      "txType": "create",
+      "initialBuy": 30000000,
+      "solAmount": 0.862895494,
+      "bondingCurveKey": "3pY9jbxbsLM6kgyxr75Ps26RVPdVd3oMHEgyGe18KnNk",
+      "vTokensInBondingCurve": 1043000000,
+      "vSolInBondingCurve": 30.862895493767976,
+      "marketCapSol": 29.59050382911599,
+      "name": "BAWSAQ SIX AI",
+      "symbol": "BAWSAQ",
+      "uri": "https://ipfs.io/ipfs/bafkreieiubbpykabwr4sohm5wupe4w4anbo34kze2tizxtbrbkkss633rq",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025774.8237474
+  },
+  "6yyTSzysZcUJ5tv33uWc92B8n9jiHXqit5Bgwaqc6hAt": {
+    "token": {
+      "signature": "VYsEGM4VVGdH5U1PqtrUcNrrC3YJz3t5MvvJAo7XDLZGaCbBdZzkbijRTxkejth4fmTNnoTE9d2EAoueHrVjFH2",
+      "mint": "6yyTSzysZcUJ5tv33uWc92B8n9jiHXqit5Bgwaqc6hAt",
+      "traderPublicKey": "Fv3SW1ePnThib6qqJ7ZXPzwfqF3sw8ohgkYrn8P3Fm6H",
+      "txType": "create",
+      "initialBuy": 0,
+      "solAmount": 0,
+      "bondingCurveKey": "4CF3S9DpwvdfKJs3RCtyNpuxZwbEs4qpG5oVcuE3gbFK",
+      "vTokensInBondingCurve": 1073000000,
+      "vSolInBondingCurve": 30,
+      "marketCapSol": 27.958993476234856,
+      "name": "DacityCoin",
+      "symbol": "DCTY",
+      "uri": "https://ipfs.io/ipfs/bafkreiclf5czusggxskrn72znduwynssy3rqeliv5r74pjtyx7mqjbylhq",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025794.394983
+  },
+  "AEpP7PiCqBYgKoxRj7DWKz5TVCkMeNXCzqGQ68v4pump": {
+    "token": {
+      "signature": "2PaWzHaapgjexepoViXs7xa6c4eTmuC19oyzZic74nonW6ynSJYhz28sCDbeLPggV4ZZcvwNnj6ahp8CjYgG9Xiw",
+      "mint": "AEpP7PiCqBYgKoxRj7DWKz5TVCkMeNXCzqGQ68v4pump",
+      "traderPublicKey": "6uPdefuZyQsyvzjBVXHwPKzXgq9ncX1y8ruFNwcyFArF",
+      "txType": "create",
+      "initialBuy": 4274900.398406,
+      "solAmount": 0.12,
+      "bondingCurveKey": "3bMG6scT8XTvvsLvKXtdXK3gud55u95XdYYQQrjvQrX6",
+      "vTokensInBondingCurve": 1068725099.601594,
+      "vSolInBondingCurve": 30.11999999999999,
+      "marketCapSol": 28.183112767940337,
+      "name": "Daifuku",
+      "symbol": "DAIFUKU",
+      "uri": "https://pumpfun-deployer-production.up.railway.app/api/deployments/DEPLOY-0002/metadata.json",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025798.7554162
+  },
+  "9acMDJxtqp55c1WqzkgDj26zwRfUbmXQrmyvLZdopump": {
+    "token": {
+      "signature": "3KUEgXcpVVwkxPeYNfeAYqVdMbVvqiTX8BBycevEYQtWm4eMv9JV41zqRWt1mzK1mCR8gHJpRkQdDhT5mPdpdSui",
+      "mint": "9acMDJxtqp55c1WqzkgDj26zwRfUbmXQrmyvLZdopump",
+      "traderPublicKey": "9aDKw4suLHZd9ZLmiyrA9tZBmZDRGUafxTPriteZzzxq",
+      "txType": "create",
+      "initialBuy": 34318797.76189,
+      "solAmount": 0.991222264,
+      "bondingCurveKey": "4kJB2nUWMs6PQFcZCWbUkXuRLFgWSt5xQMda4fUS81dv",
+      "vTokensInBondingCurve": 1038681202.23811,
+      "vSolInBondingCurve": 30.991222264,
+      "marketCapSol": 29.837087835248504,
+      "name": "Vice Pepe",
+      "symbol": "VEPE",
+      "uri": "https://j7m.io/metadata/7c736dc60e744a6b.json",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025800.4527338
+  },
+  "6L5RRSetgtXgE6MJKerxmR5d3AgqJDnQqSB2AD7qpump": {
+    "token": {
+      "signature": "iY6TniiEaLJ3B189sVQWw8bya9CBYtPEFzJcFHjC2av7f1G78exwcziVxMJwXcd5yAQ6RSaofmrnb6xt5fTsmhR",
+      "mint": "6L5RRSetgtXgE6MJKerxmR5d3AgqJDnQqSB2AD7qpump",
+      "traderPublicKey": "4Fe9YsMtvBUDp78NMEF5eeYBGoabRYwg2wY2FJzDxbxu",
+      "txType": "create",
+      "initialBuy": 25855421.593387,
+      "solAmount": 0.740740738,
+      "bondingCurveKey": "BXvoxTbrZx3JFTCLMgUGFy9QrJTi5mfBTMTcRKKMZHVS",
+      "vTokensInBondingCurve": 1047144578.406613,
+      "vSolInBondingCurve": 30.740740737999996,
+      "marketCapSol": 29.356730075207597,
+      "name": "Lucia´s Feet",
+      "symbol": "LFEETX",
+      "uri": "https://ipfs.io/ipfs/QmcXjXUVw3ust2jWASt1Uf4dA7BnYcaCKNRFyQbCb1HLC6",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025804.06054
+  },
+  "5s5QRPGvvhqdjKnDZTJP3otT1c1t3tidgyUJu4Bvpump": {
+    "token": {
+      "signature": "5X5uvpNeAht2fGgSsRFXgaiGFtoux2ZiEawf6iaSmUX1LFC21qabo3te1PRWQ4AfbiNtZPozq8xdyy87dcyQ5sn2",
+      "mint": "5s5QRPGvvhqdjKnDZTJP3otT1c1t3tidgyUJu4Bvpump",
+      "traderPublicKey": "5jbbw8fXYMvwnq3kd6KJKrteEGxhWvfytyG5VbkbDJ5L",
+      "txType": "create",
+      "initialBuy": 353134.727201,
+      "solAmount": 0.009876542,
+      "bondingCurveKey": "CzQt8b5z8sC5UDw2D9jzDeDq5VLKy6Ndcf1gWNLsADmC",
+      "vTokensInBondingCurve": 1072646865.272799,
+      "vSolInBondingCurve": 30.009876541999994,
+      "marketCapSol": 27.977405718113747,
+      "name": "GlitchGTAVI",
+      "symbol": "Glitch",
+      "uri": "https://ipfs.io/ipfs/bafkreidacmxfbxc4ldjyxqs55nytgxwjxbsvlvzolrnyillwa22tr4uiiq",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025822.393058
+  },
+  "ApNM8bZ1mdaKMgiq4N6ELDUv83wUziArgViVZpe3BUB4": {
+    "token": {
+      "signature": "464K1jrUA42qL7zVwdgG26QQGAV8QJgTZuV83zqWtWzbdheVSC1HCHW9A8aGyQoHqwhfW32Bc2F2ueLcPbisRJxn",
+      "traderPublicKey": "CDvs6fLsU4Lde3CzJQEeqWYQdWqzadqAEWLSbvES3kx3",
+      "txType": "create",
+      "mint": "ApNM8bZ1mdaKMgiq4N6ELDUv83wUziArgViVZpe3BUB4",
+      "solInPool": 3.27366,
+      "tokensInPool": 894676200.964587,
+      "initialBuy": 105323799.03541303,
+      "solAmount": 3.27366,
+      "newTokenBalance": 105323799.035413,
+      "marketCapSol": 34.374617401394765,
+      "name": "Varford",
+      "symbol": "VRFR",
+      "uri": "https://gateway.pinata.cloud/ipfs/bafkreidir5fy7lullgx2vfee6ej4k35yvlcimusjll5gqazrd7ue7kk5gu",
+      "pool": "bonk"
+    },
+    "first_seen": 1795025830.9950054
+  },
+  "Em7p6EgPrK4p2PRqT7AFhHpFc1UnSMzx6zy4QZbspump": {
+    "token": {
+      "signature": "39oG5xY6yHaJg2LYu8F9CpwNB1fPuS8MMK3kbCkwB7M7p8AaEkHpnmCAxCTk9tCnwYjDTyp8t37z6w8uz9jZx5Ej",
+      "mint": "Em7p6EgPrK4p2PRqT7AFhHpFc1UnSMzx6zy4QZbspump",
+      "traderPublicKey": "ATuqVJ854MPC32LAQ7Ea59EynstgDEoCysxR62SphALd",
+      "txType": "create",
+      "initialBuy": 30210846.214968,
+      "solAmount": 0.869135801,
+      "bondingCurveKey": "8KFFqfK5NNBJ2Bzr8jfeZuU1f6ZnuaBzgRFTh5emnxqF",
+      "vTokensInBondingCurve": 1042789153.785032,
+      "vSolInBondingCurve": 30.869135800999974,
+      "marketCapSol": 29.602471112164594,
+      "name": "FutureFuel",
+      "symbol": "FFL",
+      "uri": "https://ipfs.io/ipfs/bafkreigx5ji3yxhxei2wwvnhkmhdmsauq3qf5un75mhxi7urhs7bbis24e",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025839.792601
+  },
+  "EvJHgBarBhgtVJC3BKk8BmV47425qmPawAannPyDVGWE": {
+    "token": {
+      "signature": "3FDgKX3Wetq8onTpUkHPVnsfXTcFMtZZjt5TvCq1Sg6ST9sUNcRnfhFMUoFkFC2U9parQwueMpqo6rRSJjqMFWxG",
+      "mint": "EvJHgBarBhgtVJC3BKk8BmV47425qmPawAannPyDVGWE",
+      "traderPublicKey": "DB2MjqPEfPmUFBXuZj7FaTBoWk7qtSMHX8kbFWVPM5su",
+      "txType": "create",
+      "initialBuy": 7105960.2649,
+      "solAmount": 0.2,
+      "bondingCurveKey": "5opRSv4mCicJFQafGQ8KdXNy6w2CmLffwDsKbnzGgDrM",
+      "vTokensInBondingCurve": 1065894039.7351,
+      "vSolInBondingCurve": 30.19999999999998,
+      "marketCapSol": 28.33302267785023,
+      "name": "GTA",
+      "symbol": "GTA",
+      "uri": "https://h7crypto.lovable.app/api/public/meta/929e9ac5a8e44468b9a689cca28a001d",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025842.5073838
+  },
+  "61NVXxyFqJGgsX5nictWxLW1q1nsYUSW4Fb4xJBYpump": {
+    "token": {
+      "signature": "4d4bXp5ammoqkDExux6nne7pRRrMuZhy3Xap3Bteo3kK4nJZQVDbUBtLKAFEToLwpULVndmdej4umYGFQemUrEt7",
+      "mint": "61NVXxyFqJGgsX5nictWxLW1q1nsYUSW4Fb4xJBYpump",
+      "traderPublicKey": "7nPZZJ94qEtH7Ueizy15tG2dkGVEwDzcNBCdLWBFCpTm",
+      "txType": "create",
+      "initialBuy": 34199203.154141,
+      "solAmount": 0.98765432,
+      "bondingCurveKey": "FSvY2urCBbGLdVuYoNd8gK8s7AtKaqv8u7pivtHz3EeY",
+      "vTokensInBondingCurve": 1038800796.845859,
+      "vSolInBondingCurve": 30.987654319999976,
+      "marketCapSol": 29.830218088096093,
+      "name": "Speedcam",
+      "symbol": "SPEEDCAM",
+      "uri": "https://ipfs.io/ipfs/bafkreifxh2i7fvblxpxyxpmgszhak2eh26w2mp3x54bvpel62avgenprhy",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025854.4970658
+  },
+  "DswACDz3xb2rt5XG7KfSu3icPMgN4R2hSUJb8h9Jpump": {
+    "token": {
+      "signature": "5uy9TMQ2qjYwyngqMJKBo9nMbxUAu73D1WknfFhfs79QkiWRAfGJYmnc2npGAEHj7kTxXCKfrGNL1GEi5enhmvbR",
+      "mint": "DswACDz3xb2rt5XG7KfSu3icPMgN4R2hSUJb8h9Jpump",
+      "traderPublicKey": "8iUC5gsYXJ7B9poxhJ8JuwpWKRaVH3koosySoTqeenr7",
+      "txType": "create",
+      "initialBuy": 706037.126454,
+      "solAmount": 0.019753085,
+      "bondingCurveKey": "55xb4DNjXxcpNAAXLhdf3kTFhpPzeYFCqHfvbp31Xrm3",
+      "vTokensInBondingCurve": 1072293962.873546,
+      "vSolInBondingCurve": 30.01975308499999,
+      "marketCapSol": 27.99582402250284,
+      "name": "GTA6 DOG",
+      "symbol": "GTA6 Ai",
+      "uri": "https://ipfs.io/ipfs/bafkreigjoytef5egeucjp3rgvcw6bg2cr4zofauhdx4t4oc2x67yddlaj4",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025862.3075962
+  },
+  "6h83Yemhi8u6oHtv4NGP8AW4mPL2QfjkHvB53vDNgpaA": {
+    "token": {
+      "signature": "4e5UsvDqeobZ5Uy6xk6DsaBokzVHNjmRzLYxViHTfZXPWVKt8FhXfGrfRP65vxMG4CqqHV2gRm75BCAuqfy4k6km",
+      "mint": "6h83Yemhi8u6oHtv4NGP8AW4mPL2QfjkHvB53vDNgpaA",
+      "traderPublicKey": "De3uMw8cvS5AyyJPUxkQcqtoo49USprsbxFnKTpn17mr",
+      "txType": "create",
+      "initialBuy": 0,
+      "solAmount": 0,
+      "bondingCurveKey": "GGgcMRfQNpYomEjVaQFxMn4QcFZPmsUoZ16Fk6QokA52",
+      "vTokensInBondingCurve": 1073000000,
+      "vSolInBondingCurve": 30,
+      "marketCapSol": 27.958993476234856,
+      "name": "TBAWST",
+      "symbol": "TBAWST",
+      "uri": "https://s4qq5tmzsodtjnza.public.blob.vercel-storage.com/metadata/3da626b140b620ce532ea7ea5cd81ee82bd4da3fa1833657255c0be941dc5260.json",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025870.17361
+  },
+  "7f1YY35nzXho2WXtPohyKCh1UUM4edDL4rokVuBspump": {
+    "token": {
+      "signature": "5wckTMhRCYX6BrTaos5wkamNbHPSjGmWKbu5D4TYtFCjFM5fEFitiVxPUVTormYH4tPeTyobyPnJC9gUF2BfKKyT",
+      "mint": "7f1YY35nzXho2WXtPohyKCh1UUM4edDL4rokVuBspump",
+      "traderPublicKey": "5C98TnJeSsHDnBnbXiRj6Ng9dUvKDB4yRQmcTX7ejnf9",
+      "txType": "create",
+      "initialBuy": 40795859.787968,
+      "solAmount": 1.185691615,
+      "bondingCurveKey": "Bo3wTx5qYor4cUb9AGNCjnGjiG6eTCcAhRaeyTqb9zZV",
+      "vTokensInBondingCurve": 1032204140.212032,
+      "vSolInBondingCurve": 31.185691614633164,
+      "marketCapSol": 30.212717038925174,
+      "name": "BABYDCTY",
+      "symbol": "BABYDCTY",
+      "uri": "https://ipfs.io/ipfs/bafkreiayotvbfzbbo3k3pmjoa66yge6kvcf37uc7rn3mqmcvcpkh275faa",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025897.5974283
+  },
+  "6vYYiTTXJ4JDnQjN4kJwrXKmUSswwAWxSxWdfWVDpump": {
+    "token": {
+      "signature": "LzWJhofx5xKsoCkNRQRNHY6cHZCHH9buitVbbAxYj5Q39HNwrgXiWiLjZfrUWNu1Tkgw5Dtjxe1QiG1bzo4bQ6e",
+      "mint": "6vYYiTTXJ4JDnQjN4kJwrXKmUSswwAWxSxWdfWVDpump",
+      "traderPublicKey": "C4hhFfpAUwJHQtNAC2xVLo54r523rE7xeJhxbdcJ13RW",
+      "txType": "create",
+      "initialBuy": 30210846.214968,
+      "solAmount": 0.869135801,
+      "bondingCurveKey": "GikUFsNGPepck3w48bx1Y1G33UKBazMdwpKdfxRZtsGc",
+      "vTokensInBondingCurve": 1042789153.785032,
+      "vSolInBondingCurve": 30.869135800999974,
+      "marketCapSol": 29.602471112164594,
+      "name": "PixelPiggy",
+      "symbol": "PPG",
+      "uri": "https://ipfs.io/ipfs/bafkreibkaiidahbtlpfoqcv2ic7iapmrapzu3hleblfosew6i2yjda7bw4",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025899.1302817
+  },
+  "2Z6GJHt3ww6UQivZKBXJP1P33KqPdiDRRYUuuNU2pump": {
+    "token": {
+      "signature": "5TPJRW2myyT1k1dF45v4PYToayuzP7Ut9r9zXuMPuKi5R7vDNeJy6pBtNKzdyJ5CJe6TFybBig2UV4U2bSUU8aeZ",
+      "mint": "2Z6GJHt3ww6UQivZKBXJP1P33KqPdiDRRYUuuNU2pump",
+      "traderPublicKey": "3Tbe5Bga8rF6tFVvDXJogy9CCK3r714fh89XNs25CRx7",
+      "txType": "create",
+      "initialBuy": 93514650.583056,
+      "solAmount": 2.864197529,
+      "bondingCurveKey": "BJ921CS1KdM2PxJVHHHVYuHA5FCTY8K1Ei1PepQS6CR2",
+      "vTokensInBondingCurve": 979485349.416944,
+      "vSolInBondingCurve": 32.864197528999966,
+      "marketCapSol": 33.552515664030054,
+      "name": "SHIBO",
+      "symbol": "AwNGwzfgEo",
+      "uri": "https://ipfs.io/ipfs/bafkreieu57d2h4ji7vpdvc4feyje75ybendb6vn36z7hcmsgelt3yjkx3u",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025916.0011146
+  },
+  "GQ3dtbCDdQZvq75p8mA1uhwjuAPvbgcCB4HpSMhapump": {
+    "token": {
+      "signature": "3nW61De4vqJvs9d5WWL7zuWv8vE6wqJkfqUK1o8MXr5H848uM4Vcdnu9KPkscb9hrcFJzHek2iXe8FBLzeduR4LE",
+      "mint": "GQ3dtbCDdQZvq75p8mA1uhwjuAPvbgcCB4HpSMhapump",
+      "traderPublicKey": "7xZpE9K6DLu1hcADyywxymSxqo7VfN5YzZm3DWC7imsR",
+      "txType": "create",
+      "initialBuy": 2115327.702796,
+      "solAmount": 0.059259258,
+      "bondingCurveKey": "5bs2jZEBjooggBmsjpptzPboetjDTaE1UfUQrFveW5J8",
+      "vTokensInBondingCurve": 1070884672.297204,
+      "vSolInBondingCurve": 30.059259257999976,
+      "marketCapSol": 28.069557848389476,
+      "name": "ALTA",
+      "symbol": "ALT COIN",
+      "uri": "https://pump.mypinata.cloud/ipfs/bafkreiaazymxat2xwsrg2jc7cikhhl57w2vmq2zccvsrvo3msr6ks3jea4",
+      "is_mayhem_mode": true,
+      "pool": "pump"
+    },
+    "first_seen": 1795025916.860609
+  },
+  "GAbD8i5AuQecC6tVQY4qTEJDC7JotfAaadXRQrdcpump": {
+    "token": {
+      "signature": "66u6GLJAoYh1HY73PqUPR5tRFUPW5vyeGsGv3hJ2gxha3Z6srzrb99Z3XtgwtnEmGMXF7yJzfGHSbq2LbieM5i5U",
+      "mint": "GAbD8i5AuQecC6tVQY4qTEJDC7JotfAaadXRQrdcpump",
+      "traderPublicKey": "6tDqimpvSjctGsW4zqMxpUgbp4hSmofaHTGyW4AtHiZH",
+      "txType": "create",
+      "initialBuy": 10493887.4851,
+      "solAmount": 0.296296295,
+      "bondingCurveKey": "3mfmSJYd1MvwLfBtddZfbEGDqreB58pipudGzMucxUBU",
+      "vTokensInBondingCurve": 1062506112.5149,
+      "vSolInBondingCurve": 30.296296294999983,
+      "marketCapSol": 28.513997179075172,
+      "name": "dog wif cap",
+      "symbol": "cap",
+      "uri": "https://ipfs.io/ipfs/QmNY6e3sjVxNksU7k5QvL1A4TzuYPD2tMM7A3dMhAtVjca",
+      "is_mayhem_mode": true,
+      "pool": "pump"
+    },
+    "first_seen": 1795025922.7548933
+  },
+  "9rYjNCkMQtemRLpMMymnXW46ma1hewC5n5tBPj78mGj1": {
+    "token": {
+      "signature": "4RMa56ACQijiv65XFc8o1ZjiEa5XvQ3YuE41kiWj1JQTBtccvXkPMYaYxSuq3dCZArtfh3pmR5kXHgs9wZqCrjSb",
+      "mint": "9rYjNCkMQtemRLpMMymnXW46ma1hewC5n5tBPj78mGj1",
+      "traderPublicKey": "ED8hdG6eNRULqrKmE84KrXNgui4VcyJJRojbaq7Cs4pW",
+      "txType": "create",
+      "initialBuy": 151660777.334045,
+      "solAmount": 4.938271603,
+      "bondingCurveKey": "14tpRdPVU6eWF3K2uzs9viduejkHV3GEFVAz4cdA3hCM",
+      "vTokensInBondingCurve": 921339222.6659551,
+      "vSolInBondingCurve": 34.93827160299997,
+      "marketCapSol": 37.921181193072194,
+      "name": "reembolso",
+      "symbol": "REEMBOLSO",
+      "uri": "https://ipfs2.extraction.live/ipfs/9rYjNCkMQtemRLpMMymnXW46ma1hewC5n5tBPj78mGj1",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025942.9169288
+  },
+  "5crChGGXDMdP1XsJ4JZAr4WgDk3TZV13WDdXp43ypump": {
+    "token": {
+      "signature": "5YydQ3aNt6WjQCeMWtc98aajASrEmANkrhtH1arfDeuHmRkdDNr9w11Yn89Yzq9vw3vHKv1iHsBbUKtjFkoW2gzh",
+      "mint": "5crChGGXDMdP1XsJ4JZAr4WgDk3TZV13WDdXp43ypump",
+      "traderPublicKey": "CSpFVRrZcZwDiGoe5YzvvXxLtr96t8xA9BUpFVAYHA21",
+      "txType": "create",
+      "initialBuy": 5272727.232064,
+      "solAmount": 0.148148147,
+      "bondingCurveKey": "ARorY5myATr1zeA3x9Fx579XSR8Ze39Wyvabef7bsPBg",
+      "vTokensInBondingCurve": 1067727272.767936,
+      "vSolInBondingCurve": 30.148148146999986,
+      "marketCapSol": 28.23581350399064,
+      "name": "Sized",
+      "symbol": "Sized",
+      "uri": "https://ipfs.io/ipfs/bafkreibcldpvusosgkzva7wwtgegtpcm2eqozzvwnclz25bdcc3fa2zeaq",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025947.7023227
+  },
+  "HMS1NGNVoRF61ZG2Lmq36TrzmWxvLd8mqo7sZXfZpump": {
+    "token": {
+      "signature": "i33T7W4gECZLcPXunH48XcH2W6nfFfNdUmR9TkjUWyQsSJEkenMTf88578MWyfeAftJpui3AUWCWpoSAHHX9o9g",
+      "mint": "HMS1NGNVoRF61ZG2Lmq36TrzmWxvLd8mqo7sZXfZpump",
+      "traderPublicKey": "8j5CXCPx7boG8EsEQGVAdXCkZDSoPav8tWDVQmkSKtXX",
+      "txType": "create",
+      "initialBuy": 30210846.214968,
+      "solAmount": 0.869135801,
+      "bondingCurveKey": "GUqJUM6qJF4U99cQngLWsmNqVkvChHMHjfwFcQ1Fnn1",
+      "vTokensInBondingCurve": 1042789153.785032,
+      "vSolInBondingCurve": 30.869135800999974,
+      "marketCapSol": 29.602471112164594,
+      "name": "SpaceDash",
+      "symbol": "SDH",
+      "uri": "https://ipfs.io/ipfs/bafkreibq7vgudt6qa76oz5b76r46ffvyubh6zjc5qaiuox5et3h4tly27e",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025952.6905804
+  },
+  "Gn88gALTBBKzFktmMtiyS5fNgv1RSHaeeh9uec29pump": {
+    "token": {
+      "signature": "koDdVxD78gwZ61gwtuTYKTuZrpaComNGmPZb4MfgbYxtDpJmE8AxErtCTjHtUxowQCcy89wBkUFssiMoXPZVevt",
+      "mint": "Gn88gALTBBKzFktmMtiyS5fNgv1RSHaeeh9uec29pump",
+      "txType": "migrate",
+      "pool": "pump-amm"
+    },
+    "first_seen": 1795025956.8486176
+  },
+  "GQXDouxPKFwtGQK5NTqS9eybZ3T6q9jxbi2QmxD8pump": {
+    "token": {
+      "signature": "3kUgR7B22wc8wqdEhpsNFSCRG89EY2dZcFse3d7W2p7pj7hwCmxrBmyGAZwNZHQXVmwQhGSSJPc8nyCHCKHzX4iE",
+      "mint": "GQXDouxPKFwtGQK5NTqS9eybZ3T6q9jxbi2QmxD8pump",
+      "traderPublicKey": "9YvLgnAwN5C3bG1ZqMvf3cfB8cD3MM23Gen8fMYmAzwQ",
+      "txType": "create",
+      "initialBuy": 34199203.154141,
+      "solAmount": 0.98765432,
+      "bondingCurveKey": "7UTdvzrU7PY7X45Q7bBsz3EaQUSShWEWXhABC5C7aXtV",
+      "vTokensInBondingCurve": 1038800796.845859,
+      "vSolInBondingCurve": 30.987654319999976,
+      "marketCapSol": 29.830218088096093,
+      "name": "FLİRTATİOUS CATS",
+      "symbol": "CAT GANG",
+      "uri": "https://ipfs.io/ipfs/bafkreign2sdd7lbavpez2k2xh6b2jritwth2alxo2nwg7gjbwgs232kaju",
+      "is_mayhem_mode": false,
+      "pool": "pump"
+    },
+    "first_seen": 1795025960.3589907
+  },
+  "7Kp9rLyCivJR7MYP1a4uUaMkAwsBHUo2jmTP89mopump": {
+    "token": {
+      "signature": "3d6oES1F6zfTNdvnTjLTYm3iUYXLNu6SvPb9hXEiuErM1GP6Pvpq3f7LU3Az2QxXnLxQBV68NSS9qgQcRqdrGBb3",
+      "mint": "7Kp9rLyCivJR7MYP1a4uUaMkAwsBHUo2jmTP89mopump",
+      "traderPublicKey": "7xZpE9K6DLu1hcADyywxymSxqo7VfN5YzZm3DWC7imsR",
+      "txType": "create",
+      "initialBuy": 2115327.702796,
+      "solAmount": 0.059259258,
+      "bondingCurveKey": "G1s37wBh2DA5j9EKoCMZBkMScmHkMmwdAFEoMQS8B7aT",
+      "vTokensInBondingCurve": 1070884672.297204,
+      "vSolInBondingCurve": 30.059259257999976,
+      "marketCapSol": 28.069557848389476,
+      "name": "ALTA",
+      "symbol": "ALT COIN",
+      "uri": "https://pump.mypinata.cloud/ipfs/bafkreiaazymxat2xwsrg2jc7cikhhl57w2vmq2zccvsrvo3msr6ks3jea4",
+      "is_mayhem_mode": true,
+      "pool": "pump"
+    },
+    "first_seen": 1795025970.6477208
   }
 }
