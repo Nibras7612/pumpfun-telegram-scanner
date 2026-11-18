@@ -1,0 +1,83 @@
+
+name: Pump.fun Telegram Scanner
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: pumpfun-scanner
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install packages
+        run: pip install websockets==12.0 requests
+
+      - name: Scan new Pump.fun tokens
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python - <<'PY'
+          import asyncio, json, os, time, requests, websockets
+
+          TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+          CHAT = os.environ["TELEGRAM_CHAT_ID"]
+          END = time.time() + 200
+          SENT = set()
+
+          def alert(data):
+              mint = data.get("mint", "")
+              if not mint or mint in SENT:
+                  return
+              SENT.add(mint)
+              name = data.get("name", "Unknown")
+              symbol = data.get("symbol", "")
+              cap = data.get("marketCapSol", "N/A")
+              msg = (
+                  "🚀 NEW PUMP.FUN TOKEN\n\n"
+                  f"Name: {name}\n"
+                  f"Symbol: {symbol}\n"
+                  f"Market Cap: {cap} SOL\n\n"
+                  f"Contract:\n{mint}\n\n"
+                  f"https://pump.fun/coin/{mint}"
+              )
+              requests.post(
+                  f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                  json={"chat_id": CHAT, "text": msg},
+                  timeout=15
+              ).raise_for_status()
+
+          async def main():
+              uri = "wss://pumpportal.fun/api/data"
+              async with websockets.connect(
+                  uri, ping_interval=20, ping_timeout=20
+              ) as ws:
+                  await ws.send(json.dumps({
+                      "method": "subscribeNewToken"
+                  }))
+                  print("Scanner connected")
+                  while time.time() < END:
+                      try:
+                          raw = await asyncio.wait_for(
+                              ws.recv(), timeout=30
+                          )
+                          data = json.loads(raw)
+                          if isinstance(data, dict):
+                              alert(data)
+                      except asyncio.TimeoutError:
+                          continue
+
+          asyncio.run(main())
+          PY
