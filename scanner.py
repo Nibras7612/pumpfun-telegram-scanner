@@ -1,452 +1,234 @@
 
 import os
 import json
-import asyncio
 import time
 import requests
-import websockets
+from datetime import datetime, timezone
 
 # ==========================================
-# PUMP.FUN FILTERED SCANNER V5
+# DEX SCREENER V6 - SOLANA
 # ==========================================
 
 MIN_MARKET_CAP = 5000
-MAX_MARKET_CAP = 100000
+MAX_MARKET_CAP = 50000
+MIN_LIQUIDITY = 5000
+MAX_TOKEN_AGE_HOURS = 10
 
-MIN_LIQUIDITY = 3000
-MAX_POOL_AGE_MINUTES = 300
+MIN_VOLUME_5M = 500
+MIN_TXNS_5M = 5
 
-MAX_RUGCHECK_SCORE = 40
-MAX_TOP_HOLDER_PCT = 15
-MAX_TOP_10_PCT = 45
+SEEN_FILE = "seen_tokens.json"
 
-RUN_SECONDS = 220
-POOL_WAIT_SECONDS = 210
-POLL_INTERVAL = 12
+BOT_TOKEN = (
+    os.getenv("TELEGRAM_BOT_TOKEN")
+    or os.getenv("BOT_TOKEN")
+)
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("CHAT_ID")
 
-MAX_PENDING = 80
-MAX_TOTAL_WAIT_SECONDS = 5 * 60 * 60
-
-PENDING_FILE = "pending_tokens.json"
-
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
-PUMPPORTAL_WS = "wss://pumpportal.fun/api/data"
-DEX_URL = "https://api.dexscreener.com/token-pairs/v1/solana/{}"
-RUG_REPORT_URL = "https://api.rugcheck.xyz/v1/tokens/{}/report"
-RUG_SUMMARY_URL = "https://api.rugcheck.xyz/v1/tokens/{}/report/summary"
+BASE_URL = "https://api.dexscreener.com"
 
 session = requests.Session()
-session.headers.update({"User-Agent": "PumpFun-Filtered-Scanner-V5"})
-
-pending = {}
-semaphore = asyncio.Semaphore(6)
+session.headers.update({"User-Agent": "SolanaScannerV6/1.0"})
 
 
-def get_json(url):
-    response = session.get(url, timeout=12)
+def load_seen():
+    try:
+        with open(SEEN_FILE, "r") as f:
+            return set(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+
+def save_seen(seen):
+    with open(SEEN_FILE, "w") as f:
+        json.dump(sorted(seen), f)
+
+
+def get_latest_profiles():
+    url = f"{BASE_URL}/token-profiles/latest/v1"
+    response = session.get(url, timeout=20)
     response.raise_for_status()
-    return response.json()
+
+    data = response.json()
+    return [
+        item for item in data
+        if item.get("chainId") == "solana"
+        and item.get("tokenAddress")
+    ]
+
+
+def get_token_pairs(address):
+    url = f"{BASE_URL}/token-pairs/v1/solana/{address}"
+    response = session.get(url, timeout=20)
+
+    if response.status_code != 200:
+        return []
+
+    data = response.json()
+    if not isinstance(data, list):
+        return []
+
+    return [
+        pair for pair in data
+        if pair.get("chainId") == "solana"
+    ]
+
+
+def check_pair(pair):
+    created = pair.get("pairCreatedAt")
+    if not created:
+        return False
+
+    age_ms = int(time.time() * 1000) - int(created)
+    age_hours = age_ms / 3600000
+
+    if age_hours < 0 or age_hours > MAX_TOKEN_AGE_HOURS:
+        return False
+
+    market_cap = pair.get("marketCap") or pair.get("fdv") or 0
+    liquidity = (pair.get("liquidity") or {}).get("usd", 0)
+    volume = pair.get("volume") or {}
+    txns = pair.get("txns") or {}
+    m5 = txns.get("m5") or {}
+
+    buys = m5.get("buys", 0)
+    sells = m5.get("sells", 0)
+    volume_5m = volume.get("m5", 0)
+
+    if not MIN_MARKET_CAP <= market_cap <= MAX_MARKET_CAP:
+        return False
+
+    if liquidity < MIN_LIQUIDITY:
+        return False
+
+    if volume_5m < MIN_VOLUME_5M:
+        return False
+
+    if buys + sells < MIN_TXNS_5M:
+        return False
+
+    # Avoid tokens with no recent buying activity
+    if buys < sells:
+        return False
+
+    return True
 
 
 def send_telegram(message):
-    if not TELEGRAM_TOKEN or not CHAT_ID:
-        raise RuntimeError("Telegram secrets missing")
+    if not BOT_TOKEN or not CHAT_ID:
+        print("ERROR: Telegram secrets missing")
+        return False
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-
-    response = requests.post(
-        url,
-        json={"chat_id": CHAT_ID, "text": message},
-        timeout=15
-    )
-    response.raise_for_status()
-    print("V5 TELEGRAM ALERT SENT")
-
-
-def load_pending():
-    if not os.path.exists(PENDING_FILE):
-        print("V5: No saved pending tokens")
-        return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     try:
-        with open(PENDING_FILE, "r", encoding="utf-8") as file:
-            saved = json.load(file)
-
-        if not isinstance(saved, dict):
-            return
-
-        now = time.time()
-
-        for mint, item in saved.items():
-            if not isinstance(item, dict):
-                continue
-
-            token = item.get("token")
-            first_seen = item.get("first_seen", now)
-
-            if not isinstance(token, dict):
-                continue
-
-            try:
-                first_seen = float(first_seen)
-            except (TypeError, ValueError):
-                first_seen = now
-
-            if now - first_seen >= MAX_TOTAL_WAIT_SECONDS:
-                continue
-
-            pending[mint] = {
-                "token": token,
-                "first_seen": first_seen
-            }
-
-        print("V5 RESTORED:", len(pending))
-
-    except Exception as error:
-        print("V5 LOAD ERROR:", str(error))
+        response = session.post(
+            url,
+            data={
+                "chat_id": CHAT_ID,
+                "text": message,
+                "disable_web_page_preview": True
+            },
+            timeout=20
+        )
+        response.raise_for_status()
+        return response.json().get("ok", False)
+    except requests.RequestException as error:
+        print("Telegram error:", error)
+        return False
 
 
-def save_pending():
-    temporary_file = PENDING_FILE + ".tmp"
+def format_message(pair):
+    base = pair.get("baseToken") or {}
+    address = base.get("address", "")
+    name = base.get("name", "Unknown")
+    symbol = base.get("symbol", "Unknown")
 
-    with open(temporary_file, "w", encoding="utf-8") as file:
-        json.dump(pending, file, ensure_ascii=False, indent=2)
+    market_cap = pair.get("marketCap") or pair.get("fdv") or 0
+    liquidity = (pair.get("liquidity") or {}).get("usd", 0)
+    volume = pair.get("volume") or {}
+    txns = pair.get("txns") or {}
+    m5 = txns.get("m5") or {}
 
-    os.replace(temporary_file, PENDING_FILE)
-    print("V5 SAVED PENDING:", len(pending))
+    age_hours = (
+        time.time() * 1000 - pair["pairCreatedAt"]
+    ) / 3600000
 
+    buys = m5.get("buys", 0)
+    sells = m5.get("sells", 0)
 
-def check_coin(token):
-    mint = token.get("mint")
-
-    if not mint:
-        return "reject", None
-
-    # 1. DEXSCREENER CHECK
-
-    try:
-        pairs = get_json(DEX_URL.format(mint))
-    except Exception as error:
-        print("V5 DEX WAIT:", mint, str(error))
-        return "wait", None
-
-    if not isinstance(pairs, list) or not pairs:
-        return "wait", None
-
-    pairs = [
-        pair for pair in pairs
-        if pair.get("chainId") == "solana"
-        and pair.get("baseToken", {}).get("address") == mint
-    ]
-
-    if not pairs:
-        return "wait", None
-
-    pair = max(
-        pairs,
-        key=lambda item: (item.get("liquidity") or {}).get("usd") or 0
-    )
-
-    market_cap = pair.get("marketCap")
-    liquidity = (pair.get("liquidity") or {}).get("usd")
-    created_at = pair.get("pairCreatedAt")
-
-    if market_cap is None or liquidity is None or created_at is None:
-        return "wait", None
-
-    try:
-        market_cap = float(market_cap)
-        liquidity = float(liquidity)
-        pool_age = (time.time() * 1000 - float(created_at)) / 60000
-    except (TypeError, ValueError):
-        return "wait", None
-
-    if not MIN_MARKET_CAP <= market_cap <= MAX_MARKET_CAP:
-        return "reject", None
-
-    if liquidity < MIN_LIQUIDITY:
-        return "reject", None
-
-    if pool_age < 0 or pool_age > MAX_POOL_AGE_MINUTES:
-        return "reject", None
-
-    # 2. RUGCHECK
-
-    try:
-        report = get_json(RUG_REPORT_URL.format(mint))
-        summary = get_json(RUG_SUMMARY_URL.format(mint))
-    except Exception as error:
-        print("V5 RUGCHECK WAIT:", mint, str(error))
-        return "wait", None
-
-    if not isinstance(report, dict) or not isinstance(summary, dict):
-        return "wait", None
-
-    score = summary.get("score_normalised")
-
-    if score is None:
-        return "wait", None
-
-    try:
-        score = float(score)
-    except (TypeError, ValueError):
-        return "wait", None
-
-    if score > MAX_RUGCHECK_SCORE:
-        return "reject", None
-
-    # 3. MINT AND FREEZE AUTHORITY
-
-    token_info = report.get("token") or {}
-
-    mint_authority = report.get("mintAuthority")
-    if mint_authority is None:
-        mint_authority = token_info.get("mintAuthority")
-
-    freeze_authority = report.get("freezeAuthority")
-    if freeze_authority is None:
-        freeze_authority = token_info.get("freezeAuthority")
-
-    if "mintAuthority" not in report and "mintAuthority" not in token_info:
-        return "wait", None
-
-    if "freezeAuthority" not in report and "freezeAuthority" not in token_info:
-        return "wait", None
-
-    if mint_authority is not None or freeze_authority is not None:
-        return "reject", None
-
-    # 4. HOLDER CHECK
-
-    holders = report.get("topHolders")
-
-    if not isinstance(holders, list) or len(holders) < 10:
-        return "wait", None
-
-    percentages = []
-
-    try:
-        for holder in holders[:10]:
-            pct = holder.get("pct")
-
-            if pct is None:
-                return "wait", None
-
-            percentages.append(float(pct))
-
-    except (ValueError, TypeError, AttributeError):
-        return "wait", None
-
-    biggest_holder = max(percentages)
-    top_10_total = sum(percentages)
-
-    if biggest_holder >= MAX_TOP_HOLDER_PCT:
-        return "reject", None
-
-    if top_10_total >= MAX_TOP_10_PCT:
-        return "reject", None
-
-    # 5. ALL FILTERS PASSED
-
-    name = token.get("name") or pair.get("baseToken", {}).get("name") or "Unknown"
-    symbol = token.get("symbol") or pair.get("baseToken", {}).get("symbol") or "Unknown"
-
-    message = (
-        "🟢 PUMP.FUN SCANNER V5 - PASSED\n\n"
+    return (
+        "🚀 DEX SCREENER V6 - NEW SOLANA TOKEN\n\n"
         f"Name: {name}\n"
         f"Symbol: {symbol}\n"
         f"Market Cap: ${market_cap:,.0f}\n"
         f"Liquidity: ${liquidity:,.0f}\n"
-        f"Pool Age: {pool_age:.1f} minutes\n"
-        f"RugCheck Score: {score:.0f}\n"
-        f"Biggest Holder: {biggest_holder:.2f}%\n"
-        f"Top 10 Holders: {top_10_total:.2f}%\n"
-        "Mint Authority: Revoked\n"
-        "Freeze Authority: Revoked\n\n"
-        f"Contract:\n{mint}\n\n"
-        f"https://pump.fun/coin/{mint}\n"
-        f"https://dexscreener.com/solana/{mint}"
+        f"Volume (5m): ${volume.get('m5', 0):,.0f}\n"
+        f"Buys (5m): {buys}\n"
+        f"Sells (5m): {sells}\n"
+        f"Pair Age: {age_hours:.2f} hours\n\n"
+        f"Token: {address}\n"
+        f"DEX Screener: {pair.get('url', '')}\n\n"
+        "⚠️ Filters passed. Not a guarantee of safety."
     )
 
-    return "passed", message
 
+def main():
+    seen = load_seen()
+    new_seen = set(seen)
+    alerts = 0
 
-async def watch_token(mint, run_end):
-    item = pending.get(mint)
-
-    if not item:
-        return
-
-    token = item["token"]
-    first_seen = item["first_seen"]
-
-    deadline = min(
-        time.time() + POOL_WAIT_SECONDS,
-        run_end - 5,
-        first_seen + MAX_TOTAL_WAIT_SECONDS
-    )
-
-    print("V5 WATCHING:", mint)
+    print("DEX SCREENER V6 SCAN STARTED")
 
     try:
-        while time.time() < deadline:
+        profiles = get_latest_profiles()
+        print("Solana profiles found:", len(profiles))
 
-            if mint not in pending:
-                return
+        checked_addresses = set()
 
-            async with semaphore:
-                status, message = await asyncio.to_thread(
-                    check_coin, token
+        for profile in profiles:
+            address = profile["tokenAddress"]
+
+            if address in checked_addresses:
+                continue
+            checked_addresses.add(address)
+
+            try:
+                pairs = get_token_pairs(address)
+
+                # Use the pair with the highest available liquidity
+                pairs.sort(
+                    key=lambda p: (p.get("liquidity") or {}).get("usd", 0),
+                    reverse=True
                 )
 
-            if status == "passed":
-                try:
-                    await asyncio.to_thread(send_telegram, message)
-                    pending.pop(mint, None)
-                    print("V5 PASSED:", mint)
-                except Exception as error:
-                    print("V5 TELEGRAM RETRY:", str(error))
-                return
-
-            if status == "reject":
-                pending.pop(mint, None)
-                print("V5 REJECTED:", mint)
-                return
-
-            await asyncio.sleep(POLL_INTERVAL)
-
-        if mint in pending:
-            if time.time() >= first_seen + MAX_TOTAL_WAIT_SECONDS:
-                pending.pop(mint, None)
-                print("V5 EXPIRED:", mint)
-            else:
-                print("V5 SAVED FOR NEXT RUN:", mint)
-
-    except asyncio.CancelledError:
-        print("V5 WATCH PAUSED:", mint)
-        raise
-
-
-async def main():
-    print("PUMP.FUN FILTERED SCANNER V5 STARTED")
-
-    load_pending()
-
-    run_end = time.time() + RUN_SECONDS
-    tasks = {}
-
-    def start_watch(mint):
-        if mint in tasks or mint not in pending:
-            return
-
-        if len(tasks) >= MAX_PENDING:
-            return
-
-        task = asyncio.create_task(
-            watch_token(mint, run_end)
-        )
-
-        tasks[mint] = task
-
-        def remove_finished(done_task, token_mint=mint):
-            if tasks.get(token_mint) is done_task:
-                tasks.pop(token_mint, None)
-
-        task.add_done_callback(remove_finished)
-
-    for mint in list(pending.keys()):
-        start_watch(mint)
-
-    try:
-        async with websockets.connect(
-            PUMPPORTAL_WS,
-            ping_interval=20,
-            ping_timeout=20,
-            close_timeout=10
-        ) as ws:
-
-            await ws.send(json.dumps({
-                "method": "subscribeNewToken"
-            }))
-
-            await ws.send(json.dumps({
-                "method": "subscribeMigration"
-            }))
-
-            print("V5 SUBSCRIBED TO NEW TOKENS")
-            print("V5 SUBSCRIBED TO MIGRATIONS")
-
-            while time.time() < run_end - 8:
-
-                try:
-                    raw = await asyncio.wait_for(
-                        ws.recv(),
-                        timeout=max(
-                            1,
-                            run_end - time.time() - 8
-                        )
-                    )
-
-                    data = json.loads(raw)
-
-                    if not isinstance(data, dict):
+                for pair in pairs:
+                    pair_address = pair.get("pairAddress")
+                    if not pair_address or pair_address in new_seen:
                         continue
 
-                    mint = data.get("mint")
+                    if check_pair(pair):
+                        message = format_message(pair)
 
-                    if not mint or mint in pending:
-                        continue
+                        if send_telegram(message):
+                            new_seen.add(pair_address)
+                            alerts += 1
+                            print("ALERT SENT:", pair_address)
 
-                    if len(pending) >= MAX_PENDING:
-                        print("V5 PENDING LIMIT REACHED")
-                        continue
+                        break
 
-                    pending[mint] = {
-                        "token": data,
-                        "first_seen": time.time()
-                    }
+            except (requests.RequestException, ValueError, TypeError, KeyError) as error:
+                print("Token scan error:", address, error)
 
-                    print("V5 NEW TOKEN:", mint)
+            time.sleep(0.15)
 
-                    start_watch(mint)
+    except requests.RequestException as error:
+        print("DEX Screener API error:", error)
 
-                except asyncio.TimeoutError:
-                    break
-
-    except Exception as error:
-        print("V5 WEBSOCKET ERROR:", str(error))
-
-    remaining = max(
-        0,
-        run_end - time.time() - 3
-    )
-
-    if tasks and remaining:
-        await asyncio.wait(
-            list(tasks.values()),
-            timeout=remaining
-        )
-
-    for task in list(tasks.values()):
-        if not task.done():
-            task.cancel()
-
-    if tasks:
-        await asyncio.gather(
-            *list(tasks.values()),
-            return_exceptions=True
-        )
-
-    save_pending()
-
-    print("FILTERED SCANNER V5 FINISHED")
+    save_seen(new_seen)
+    print("ALERTS SENT:", alerts)
+    print("DEX SCREENER V6 FINISHED")
 
 
 if __name__ == "__main__":
-
-    if not TELEGRAM_TOKEN or not CHAT_ID:
-        raise RuntimeError("Telegram secrets missing")
-
-    asyncio.run(main())
+    main()
