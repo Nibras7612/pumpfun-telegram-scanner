@@ -1,11 +1,12 @@
+
 import os
 import json
 import time
 import requests
 
 # ==========================================
-# DEX SCREENER V8 - ADVANCED SAFETY
-# SOLANA ONLY
+# DEX SCREENER V9 - ADVANCED SOLANA SCANNER
+# Multiple discovery sources + strict safety
 # ==========================================
 
 MIN_MC = 5000
@@ -20,6 +21,9 @@ MAX_TOP10_HOLDERS = 25
 MAX_DEV_HOLDING = 5
 MIN_LP_LOCKED = 90
 
+MAX_TOKENS_PER_RUN = 120
+REQUEST_DELAY = 0.25
+
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -29,20 +33,20 @@ RUG = "https://api.rugcheck.xyz/v1"
 SEEN_FILE = "seen_tokens.json"
 
 session = requests.Session()
-session.headers.update({"User-Agent": "SolanaScannerV8"})
+session.headers.update({"User-Agent": "SolanaScannerV9"})
 
 
 def get(url):
     for attempt in range(3):
         try:
-            r = session.get(url, timeout=25)
+            response = session.get(url, timeout=25)
 
-            if r.status_code == 429:
-                time.sleep(3 * (attempt + 1))
+            if response.status_code == 429:
+                time.sleep(5 * (attempt + 1))
                 continue
 
-            r.raise_for_status()
-            return r.json()
+            response.raise_for_status()
+            return response.json()
 
         except requests.RequestException:
             if attempt == 2:
@@ -67,13 +71,13 @@ def save_seen(seen):
 
 def telegram(message):
     if not BOT_TOKEN or not CHAT_ID:
-        print("Telegram secrets missing")
+        print("ERROR: TELEGRAM SECRETS MISSING")
         return False
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     try:
-        r = session.post(
+        response = session.post(
             url,
             data={
                 "chat_id": CHAT_ID,
@@ -82,29 +86,81 @@ def telegram(message):
             },
             timeout=20
         )
-        r.raise_for_status()
-        return r.json().get("ok", False)
 
-    except requests.RequestException as e:
-        print("Telegram error:", e)
+        response.raise_for_status()
+        result = response.json()
+
+        if result.get("ok") is True:
+            return True
+
+        print("TELEGRAM REJECTED:", result)
+        return False
+
+    except (requests.RequestException, ValueError) as e:
+        print("TELEGRAM ERROR:", e)
         return False
 
 
-def get_profiles():
-    data = get(f"{DEX}/token-profiles/latest/v1")
+# ==========================================
+# MULTIPLE TOKEN DISCOVERY SOURCES
+# ==========================================
 
-    if not isinstance(data, list):
-        return []
+DISCOVERY_ENDPOINTS = {
+    "profiles": "/token-profiles/latest/v1",
+    "latest_boosts": "/token-boosts/latest/v1",
+    "top_boosts": "/token-boosts/top/v1",
+    "takeovers": "/community-takeovers/latest/v1"
+}
 
-    return [
-        item for item in data
-        if item.get("chainId") == "solana"
-        and item.get("tokenAddress")
-    ]
 
+def discover_tokens():
+    tokens = {}
+    source_counts = {}
+
+    for source, endpoint in DISCOVERY_ENDPOINTS.items():
+        try:
+            data = get(DEX + endpoint)
+
+            count = 0
+
+            if isinstance(data, list):
+                for item in data:
+                    if item.get("chainId") != "solana":
+                        continue
+
+                    mint = item.get("tokenAddress")
+
+                    if not mint:
+                        continue
+
+                    if mint not in tokens:
+                        tokens[mint] = set()
+
+                    tokens[mint].add(source)
+                    count += 1
+
+            source_counts[source] = count
+            print(f"DISCOVERY {source}: {count}")
+
+        except Exception as e:
+            source_counts[source] = 0
+            print(f"DISCOVERY ERROR {source}: {e}")
+
+        time.sleep(0.3)
+
+    print("UNIQUE TOKENS FOUND:", len(tokens))
+
+    return tokens, source_counts
+
+
+# ==========================================
+# DEX PAIR DATA
+# ==========================================
 
 def get_pairs(mint):
-    data = get(f"{DEX}/token-pairs/v1/solana/{mint}")
+    data = get(
+        f"{DEX}/token-pairs/v1/solana/{mint}"
+    )
 
     if not isinstance(data, list):
         return []
@@ -113,12 +169,6 @@ def get_pairs(mint):
         pair for pair in data
         if pair.get("chainId") == "solana"
     ]
-
-
-def get_rug_report(mint):
-    report = get(f"{RUG}/tokens/{mint}/report")
-    summary = get(f"{RUG}/tokens/{mint}/report/summary")
-    return report, summary
 
 
 def number(value):
@@ -130,11 +180,83 @@ def number(value):
         return None
 
 
+def check_pair(pair):
+    created = pair.get("pairCreatedAt")
+
+    if not created:
+        return None
+
+    try:
+        age = (time.time() * 1000 - int(created)) / 3600000
+    except (TypeError, ValueError):
+        return None
+
+    mc = number(pair.get("marketCap"))
+
+    if mc is None:
+        mc = number(pair.get("fdv"))
+
+    liquidity = number(
+        (pair.get("liquidity") or {}).get("usd")
+    )
+
+    volume = pair.get("volume") or {}
+    txns = pair.get("txns") or {}
+    m5 = txns.get("m5") or {}
+
+    buys = int(m5.get("buys") or 0)
+    sells = int(m5.get("sells") or 0)
+
+    volume5 = number(volume.get("m5")) or 0
+
+    checks = {
+        "Age": 0 <= age <= MAX_AGE_HOURS,
+        "Market Cap": (
+            mc is not None and MIN_MC <= mc <= MAX_MC
+        ),
+        "Liquidity": (
+            liquidity is not None and liquidity >= MIN_LIQ
+        ),
+        "5m Volume": volume5 >= MIN_VOLUME_5M,
+        "5m Transactions": buys + sells >= MIN_TXNS_5M,
+        "Buys >= Sells": buys >= sells
+    }
+
+    return {
+        "checks": checks,
+        "age": age,
+        "mc": mc,
+        "liq": liquidity,
+        "volume": volume5,
+        "buys": buys,
+        "sells": sells
+    }
+
+
+# ==========================================
+# RUGCHECK
+# ==========================================
+
+def get_rug_report(mint):
+    report = get(f"{RUG}/tokens/{mint}/report")
+    summary = get(f"{RUG}/tokens/{mint}/report/summary")
+
+    if not isinstance(report, dict):
+        raise ValueError("Invalid RugCheck report")
+
+    if not isinstance(summary, dict):
+        raise ValueError("Invalid RugCheck summary")
+
+    return report, summary
+
+
 def holder_percentage(holder):
     for key in ("pct", "percentage", "percent"):
         value = number(holder.get(key))
+
         if value is not None:
             return value
+
     return None
 
 
@@ -154,6 +276,7 @@ def analyse_rug(report, summary):
     meta = report.get("tokenMeta") or {}
 
     score = summary.get("score_normalised")
+
     if score is None:
         score = report.get("score_normalised")
 
@@ -166,22 +289,30 @@ def analyse_rug(report, summary):
     )
 
     top10 = None
+
     if len(holders) >= 10:
         percentages = [
-            holder_percentage(h) for h in holders[:10]
+            holder_percentage(holder)
+            for holder in holders[:10]
         ]
 
-        if all(x is not None for x in percentages):
+        if all(value is not None for value in percentages):
             top10 = sum(percentages)
 
     dev_pct = None
+
     supply = number(token.get("supply"))
     creator_balance = number(report.get("creatorBalance"))
 
-    if supply is not None and supply > 0 and creator_balance is not None:
+    if (
+        supply is not None
+        and supply > 0
+        and creator_balance is not None
+    ):
         dev_pct = creator_balance / supply * 100
 
     lp_locked = number(summary.get("lpLockedPct"))
+
     if lp_locked is None:
         lp_locked = number(report.get("lpLockedPct"))
 
@@ -194,7 +325,10 @@ def analyse_rug(report, summary):
     token2022 = "tokenz" in program.lower()
 
     extensions = report.get("token_extensions")
-    extension_text = json.dumps(extensions or {}).lower()
+
+    extension_text = json.dumps(
+        extensions or {}
+    ).lower()
 
     risky_extensions = [
         name for name in (
@@ -217,8 +351,14 @@ def analyse_rug(report, summary):
 
     if insider_networks is not None:
         insider_check = len(insider_networks) == 0
-    elif holders and all("insider" in h for h in holders):
-        insider_check = not any(h.get("insider") for h in holders)
+
+    elif holders and all(
+        "insider" in holder for holder in holders
+    ):
+        insider_check = not any(
+            holder.get("insider") for holder in holders
+        )
+
     else:
         insider_check = None
 
@@ -234,89 +374,54 @@ def analyse_rug(report, summary):
         "risks": report.get("risks") or summary.get("risks") or [],
         "insider_check": insider_check,
         "token2022": token2022,
-        "extensions": extensions,
         "risky_extensions": risky_extensions,
         "extension_check": extension_check,
         "metadata_mutable": meta.get("mutable")
     }
 
 
-def check_pair(pair):
-    created = pair.get("pairCreatedAt")
-
-    if not created:
-        return None
-
-    age = (time.time() * 1000 - int(created)) / 3600000
-
-    mc = number(pair.get("marketCap") or pair.get("fdv"))
-    liquidity = number((pair.get("liquidity") or {}).get("usd"))
-
-    volume = pair.get("volume") or {}
-    txns = pair.get("txns") or {}
-    m5 = txns.get("m5") or {}
-
-    buys = int(m5.get("buys") or 0)
-    sells = int(m5.get("sells") or 0)
-    volume5 = number(volume.get("m5")) or 0
-
-    checks = {
-        "Age within 10 hours": 0 <= age <= MAX_AGE_HOURS,
-        "Market cap $5K-$50K":
-            mc is not None and MIN_MC <= mc <= MAX_MC,
-        "Liquidity >= $5K":
-            liquidity is not None and liquidity >= MIN_LIQ,
-        "5m volume >= $500": volume5 >= MIN_VOLUME_5M,
-        "5m transactions >= 5": buys + sells >= MIN_TXNS_5M,
-        "Buys >= sells": buys >= sells
-    }
-
-    return {
-        "checks": checks,
-        "age": age,
-        "mc": mc,
-        "liq": liquidity,
-        "volume": volume5,
-        "buys": buys,
-        "sells": sells
-    }
-
-
 def safety_checks(rug):
     return {
-        "RugCheck score <= 30":
+        "RugCheck score <= 30": (
             rug["score"] is not None
-            and rug["score"] <= MAX_RUG_SCORE,
+            and rug["score"] <= MAX_RUG_SCORE
+        ),
 
-        "Mint authority revoked":
-            rug["mint_known"] and rug["mint"] is None,
+        "Mint authority revoked": (
+            rug["mint_known"] and rug["mint"] is None
+        ),
 
-        "Freeze authority revoked":
-            rug["freeze_known"] and rug["freeze"] is None,
+        "Freeze authority revoked": (
+            rug["freeze_known"] and rug["freeze"] is None
+        ),
 
-        "Top 10 holders <= 25%":
+        "Top 10 holders <= 25%": (
             rug["top10"] is not None
-            and rug["top10"] <= MAX_TOP10_HOLDERS,
+            and rug["top10"] <= MAX_TOP10_HOLDERS
+        ),
 
-        "Dev holding <= 5%":
+        "Dev holding <= 5%": (
             rug["dev"] is not None
-            and rug["dev"] <= MAX_DEV_HOLDING,
+            and rug["dev"] <= MAX_DEV_HOLDING
+        ),
 
-        "LP locked >= 90%":
+        "LP locked >= 90%": (
             rug["lp"] is not None
-            and rug["lp"] >= MIN_LP_LOCKED,
+            and rug["lp"] >= MIN_LP_LOCKED
+        ),
 
-        "Sniper / insider check":
-            rug["insider_check"],
+        "Sniper / insider check": rug["insider_check"],
 
-        "Token-2022 extensions":
-            rug["extension_check"],
+        "Token-2022 extensions": rug["extension_check"],
 
-        # These two cannot be confirmed by the APIs used here.
         "Fake volume detection": None,
         "Sellability simulation": None
     }
 
+
+# ==========================================
+# MESSAGE
+# ==========================================
 
 def fmt(value, suffix=""):
     if value is None:
@@ -325,7 +430,7 @@ def fmt(value, suffix=""):
     return f"{value:,.2f}{suffix}"
 
 
-def make_message(pair, mint, data, rug, checks):
+def make_message(pair, mint, data, rug, checks, sources):
     base = pair.get("baseToken") or {}
 
     lines = []
@@ -350,14 +455,18 @@ def make_message(pair, mint, data, rug, checks):
             )
 
     mint_status = (
-        "REVOKED" if rug["mint_known"] and rug["mint"] is None
-        else "ACTIVE" if rug["mint_known"]
+        "REVOKED"
+        if rug["mint_known"] and rug["mint"] is None
+        else "ACTIVE"
+        if rug["mint_known"]
         else "UNKNOWN"
     )
 
     freeze_status = (
-        "REVOKED" if rug["freeze_known"] and rug["freeze"] is None
-        else "ACTIVE" if rug["freeze_known"]
+        "REVOKED"
+        if rug["freeze_known"] and rug["freeze"] is None
+        else "ACTIVE"
+        if rug["freeze_known"]
         else "UNKNOWN"
     )
 
@@ -368,7 +477,7 @@ def make_message(pair, mint, data, rug, checks):
     )
 
     return (
-        "🛡️ DEX SCREENER V8\n"
+        "🛡️ DEX SCREENER V9\n"
         "SOLANA ADVANCED SCANNER\n\n"
         f"Name: {base.get('name', 'Unknown')}\n"
         f"Symbol: {base.get('symbol', 'Unknown')}\n"
@@ -377,6 +486,7 @@ def make_message(pair, mint, data, rug, checks):
         f"5m Volume: ${fmt(data['volume'])}\n"
         f"Buys/Sells: {data['buys']}/{data['sells']}\n"
         f"Pair Age: {fmt(data['age'], ' hours')}\n\n"
+        f"Discovery Sources: {', '.join(sorted(sources))}\n\n"
         f"RugCheck Score: {fmt(rug['score'])}\n"
         f"Top 10 Holders: {fmt(rug['top10'], '%')}\n"
         f"Dev Holding: {fmt(rug['dev'], '%')}\n"
@@ -398,31 +508,63 @@ def make_message(pair, mint, data, rug, checks):
     )
 
 
+# ==========================================
+# MAIN SCANNER
+# ==========================================
+
 def main():
     seen = load_seen()
     updated = set(seen)
-    sent = 0
 
-    print("DEX SCREENER V8 STARTED")
+    stats = {
+        "discovered": 0,
+        "processed": 0,
+        "pairs_found": 0,
+        "pair_passed": 0,
+        "safety_checked": 0,
+        "safety_rejected": 0,
+        "insider_rejected": 0,
+        "api_errors": 0,
+        "duplicate_pairs": 0,
+        "alerts_sent": 0
+    }
+
+    print("================================")
+    print("DEX SCREENER V9 STARTED")
+    print("SOLANA ONLY")
+    print("================================")
 
     try:
-        profiles = get_profiles()
+        tokens, source_counts = discover_tokens()
+
     except Exception as e:
-        print("Profile API error:", e)
+        print("DISCOVERY FAILED:", e)
         return
 
-    processed = set()
+    stats["discovered"] = len(tokens)
 
-    for profile in profiles:
-        mint = profile["tokenAddress"]
+    if not tokens:
+        print("NO SOLANA TOKENS FOUND")
+        print("V9 FINISHED")
+        return
 
-        if mint in processed:
-            continue
+    token_list = list(tokens.items())[:MAX_TOKENS_PER_RUN]
 
-        processed.add(mint)
+    print("TOKENS SELECTED:", len(token_list))
+    print("PREVIOUSLY SEEN PAIRS:", len(seen))
+
+    for mint, sources in token_list:
+        stats["processed"] += 1
+
+        print(
+            f"CHECKING {stats['processed']}/"
+            f"{len(token_list)}: {mint}"
+        )
 
         try:
             pairs = get_pairs(mint)
+
+            stats["pairs_found"] += len(pairs)
 
             pairs.sort(
                 key=lambda p: number(
@@ -434,66 +576,102 @@ def main():
             for pair in pairs:
                 pair_id = pair.get("pairAddress")
 
-                if not pair_id or pair_id in updated:
+                if not pair_id:
                     continue
 
-                try:
-                    data = check_pair(pair)
+                if pair_id in updated:
+                    stats["duplicate_pairs"] += 1
+                    continue
 
-                    if not data:
-                        continue
+                data = check_pair(pair)
 
-                    if not all(data["checks"].values()):
-                        continue
+                if not data:
+                    continue
 
-                    report, summary = get_rug_report(mint)
-                    rug = analyse_rug(report, summary)
-                    checks = safety_checks(rug)
+                if not all(data["checks"].values()):
+                    continue
 
-                    # All measurable core safety checks must pass.
-                    required_checks = [
-                        "RugCheck score <= 30",
-                        "Mint authority revoked",
-                        "Freeze authority revoked",
-                        "Top 10 holders <= 25%",
-                        "Dev holding <= 5%",
-                        "LP locked >= 90%",
-                        "Token-2022 extensions"
-                    ]
+                stats["pair_passed"] += 1
 
-                    if not all(checks[name] is True for name in required_checks):
-                        print("SAFETY REJECTED:", mint, checks)
-                        continue
+                report, summary = get_rug_report(mint)
+                rug = analyse_rug(report, summary)
 
-                    # Insider check: reject if known to fail.
-                    if checks["Sniper / insider check"] is False:
-                        print("INSIDER REJECTED:", mint)
-                        continue
+                checks = safety_checks(rug)
+                stats["safety_checked"] += 1
 
-                    message = make_message(
-                        pair, mint, data, rug, checks
+                required_checks = [
+                    "RugCheck score <= 30",
+                    "Mint authority revoked",
+                    "Freeze authority revoked",
+                    "Top 10 holders <= 25%",
+                    "Dev holding <= 5%",
+                    "LP locked >= 90%",
+                    "Token-2022 extensions"
+                ]
+
+                if not all(
+                    checks[name] is True
+                    for name in required_checks
+                ):
+                    stats["safety_rejected"] += 1
+
+                    print(
+                        "SAFETY REJECTED:",
+                        mint,
+                        checks
                     )
+                    continue
 
-                    if telegram(message):
-                        updated.add(pair_id)
-                        sent += 1
-                        print("ALERT SENT:", mint)
+                if checks["Sniper / insider check"] is not True:
+                    stats["insider_rejected"] += 1
 
+                    print(
+                        "INSIDER UNKNOWN/REJECTED:",
+                        mint,
+                        checks["Sniper / insider check"]
+                    )
+                    continue
+
+                message = make_message(
+                    pair,
+                    mint,
+                    data,
+                    rug,
+                    checks,
+                    sources
+                )
+
+                if telegram(message):
+                    updated.add(pair_id)
+                    stats["alerts_sent"] += 1
+
+                    print("ALERT SENT:", mint)
+
+                    # One alert per token per run.
                     break
 
-                except Exception as e:
-                    print("Token safety error:", mint, e)
-                    break
+                else:
+                    print("ALERT DELIVERY FAILED:", mint)
 
-            time.sleep(0.5)
+            time.sleep(REQUEST_DELAY)
 
         except Exception as e:
-            print("Token error:", mint, e)
+            stats["api_errors"] += 1
+            print("TOKEN ERROR:", mint, e)
+
+            time.sleep(1)
 
     save_seen(updated)
 
-    print("ALERTS SENT:", sent)
-    print("DEX SCREENER V8 FINISHED")
+    print("================================")
+    print("V9 SCAN SUMMARY")
+    print("================================")
+
+    for key, value in stats.items():
+        print(f"{key.upper()}: {value}")
+
+    print("ALERTS SENT:", stats["alerts_sent"])
+    print("DEX SCREENER V9 FINISHED")
 
 
 if __name__ == "__main__":
