@@ -2,14 +2,13 @@
 import os
 import json
 import time
+import requests
 from datetime import datetime, timezone
 from pathlib import Path
 
-import requests
-
 # ==========================================
-# DEX SCREENER V10 - SOLANA ONLY
-# RUGCHECK SCORE DISPLAY ONLY
+# PUMP.FUN + DEX SCREENER V11
+# SOLANA ONLY
 # ==========================================
 
 DEX_API = "https://api.dexscreener.com"
@@ -19,40 +18,40 @@ TELEGRAM_API = "https://api.telegram.org"
 MIN_MC = 5000
 MAX_MC = 50000
 MIN_LIQUIDITY = 5000
-MAX_AGE_HOURS = 10
+MAX_AGE_MINUTES = 10
 MIN_VOLUME_5M = 500
 MIN_TXNS_5M = 5
+MIN_BUY_SELL_RATIO = 1.5
 
 STATE_FILE = Path("seen_tokens.json")
 MAX_SEEN = 5000
-REQUEST_TIMEOUT = 15
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 
 session = requests.Session()
-session.headers.update({
-    "User-Agent": "DEX-Screener-V10/1.0"
-})
 
 
-def log(message):
+def log(msg):
     print(
-        f"[{datetime.now(timezone.utc).isoformat()}] {message}",
+        f"[{datetime.now(timezone.utc).isoformat()}] {msg}",
         flush=True
     )
 
 
 def get_json(url):
     try:
-        response = session.get(url, timeout=REQUEST_TIMEOUT)
-        if response.status_code == 429:
-            log("API rate limit reached")
+        r = session.get(url, timeout=15)
+
+        if r.status_code == 429:
+            log("API RATE LIMIT")
             return None
-        response.raise_for_status()
-        return response.json()
-    except Exception as exc:
-        log(f"API ERROR: {exc}")
+
+        r.raise_for_status()
+        return r.json()
+
+    except Exception as e:
+        log(f"API ERROR: {e}")
         return None
 
 
@@ -67,35 +66,10 @@ def load_seen():
 
 
 def save_seen(seen):
-    values = list(seen)[-MAX_SEEN:]
     STATE_FILE.write_text(
-        json.dumps(values, indent=2),
+        json.dumps(list(seen)[-MAX_SEEN:], indent=2),
         encoding="utf-8"
     )
-
-
-def send_telegram(message):
-    if not BOT_TOKEN or not CHAT_ID:
-        log("TELEGRAM SECRETS MISSING")
-        return False
-
-    url = f"{TELEGRAM_API}/bot{BOT_TOKEN}/sendMessage"
-
-    try:
-        response = session.post(
-            url,
-            data={
-                "chat_id": CHAT_ID,
-                "text": message,
-                "disable_web_page_preview": True
-            },
-            timeout=REQUEST_TIMEOUT
-        )
-        response.raise_for_status()
-        return True
-    except Exception as exc:
-        log(f"TELEGRAM ERROR: {exc}")
-        return False
 
 
 def number(value, default=0):
@@ -105,11 +79,65 @@ def number(value, default=0):
         return default
 
 
-def fmt_usd(value):
-    return f"${number(value):,.0f}"
+def telegram(message):
+    if not BOT_TOKEN or not CHAT_ID:
+        log("TELEGRAM SECRETS MISSING")
+        return False
+
+    try:
+        r = session.post(
+            f"{TELEGRAM_API}/bot{BOT_TOKEN}/sendMessage",
+            data={
+                "chat_id": CHAT_ID,
+                "text": message,
+                "disable_web_page_preview": True
+            },
+            timeout=15
+        )
+
+        r.raise_for_status()
+        return r.json().get("ok", False)
+
+    except Exception as e:
+        log(f"TELEGRAM ERROR: {e}")
+        return False
 
 
-def get_solana_profiles():
+# ==========================================
+# PUMPFUN DISCOVERY
+# ==========================================
+
+def get_pumpfun_tokens():
+
+    data = get_json(
+        "https://frontend-api-v3.pump.fun/coins"
+        "?offset=0&limit=100&sort=created_timestamp"
+        "&order=DESC&includeNsfw=false"
+    )
+
+    result = []
+
+    if not isinstance(data, list):
+        return result
+
+    for coin in data:
+        if not isinstance(coin, dict):
+            continue
+
+        mint = coin.get("mint")
+
+        if mint:
+            result.append(mint)
+
+    return result
+
+
+# ==========================================
+# DEXSCREENER DISCOVERY
+# ==========================================
+
+def get_dex_tokens():
+
     data = get_json(
         f"{DEX_API}/token-profiles/latest/v1"
     )
@@ -118,7 +146,8 @@ def get_solana_profiles():
         return []
 
     return [
-        item for item in data
+        item["tokenAddress"]
+        for item in data
         if isinstance(item, dict)
         and item.get("chainId") == "solana"
         and item.get("tokenAddress")
@@ -126,105 +155,109 @@ def get_solana_profiles():
 
 
 def get_pairs(mint):
+
     data = get_json(
         f"{DEX_API}/token-pairs/v1/solana/{mint}"
     )
-    return data if isinstance(data, list) else []
 
+    if not isinstance(data, list):
+        return []
+
+    return [
+        p for p in data
+        if isinstance(p, dict)
+        and p.get("chainId") == "solana"
+    ]
+
+
+# ==========================================
+# RUGCHECK
+# ==========================================
 
 def get_rugcheck(mint):
-    report = get_json(
+
+    data = get_json(
         f"{RUGCHECK_API}/tokens/{mint}/report"
     )
 
-    if isinstance(report, dict):
-        return report
-
-    summary = get_json(
-        f"{RUGCHECK_API}/tokens/{mint}/report/summary"
-    )
-
-    return summary if isinstance(summary, dict) else {}
+    return data if isinstance(data, dict) else {}
 
 
 def extract_score(report):
+
     for key in (
         "score_normalised",
         "scoreNormalized",
         "score"
     ):
         if report.get(key) is not None:
-            return report.get(key)
+            return report[key]
 
-    return None
+    return "N/A"
 
 
-def extract_holder_info(report):
+def holder_info(report):
+
     holders = (
         report.get("topHolders")
         or report.get("top_holders")
         or []
     )
 
+    if not isinstance(holders, list):
+        return None, None, None
+
     percentages = []
 
-    if isinstance(holders, list):
-        for holder in holders:
-            if not isinstance(holder, dict):
-                continue
+    for h in holders:
+        if not isinstance(h, dict):
+            continue
 
-            pct = holder.get(
-                "pct",
-                holder.get("percentage")
-            )
+        pct = h.get("pct", h.get("percentage"))
 
-            if pct is not None:
-                percentages.append(number(pct))
+        if pct is not None:
+            percentages.append(number(pct))
 
-    top10 = (
-        sum(percentages[:10])
-        if percentages else None
-    )
-
-    largest = (
-        max(percentages)
-        if percentages else None
-    )
+    top10 = sum(percentages[:10]) if percentages else None
+    largest = max(percentages) if percentages else None
 
     creator = (
         report.get("creator")
-        or report.get("token", {}).get("creator")
-        or report.get("token", {}).get("owner")
+        or (report.get("token") or {}).get("creator")
+        or (report.get("token") or {}).get("owner")
     )
 
-    dev_pct = None
+    dev = None
 
-    if creator and isinstance(holders, list):
-        for holder in holders:
-            if not isinstance(holder, dict):
-                continue
+    for h in holders:
 
-            address = (
-                holder.get("address")
-                or holder.get("owner")
-                or holder.get("wallet")
-            )
+        if not isinstance(h, dict):
+            continue
 
-            if address == creator:
-                pct = holder.get(
-                    "pct",
-                    holder.get("percentage")
-                )
+        address = (
+            h.get("address")
+            or h.get("owner")
+            or h.get("wallet")
+        )
 
-                if pct is not None:
-                    dev_pct = number(pct)
+        if creator and address == creator:
 
-                break
+            value = h.get("pct", h.get("percentage"))
 
-    return top10, largest, dev_pct, len(holders)
+            if value is not None:
+                dev = number(value)
+
+            break
+
+    return top10, largest, dev
 
 
-def age_hours(pair):
+# ==========================================
+# FILTERS
+# ==========================================
+
+def age_minutes(pair):
+
     created = pair.get("pairCreatedAt")
 
     if not created:
@@ -233,7 +266,7 @@ def age_hours(pair):
     try:
         return max(
             0,
-            (time.time() - float(created) / 1000) / 3600
+            (time.time() - float(created) / 1000) / 60
         )
     except (TypeError, ValueError):
         return None
@@ -241,9 +274,6 @@ def age_hours(pair):
 
 def passes_filters(pair):
 
-    if pair.get("chainId") != "solana":
-        return False, "Network"
-
     mc = number(
         pair.get("marketCap") or pair.get("fdv")
     )
@@ -252,7 +282,7 @@ def passes_filters(pair):
         (pair.get("liquidity") or {}).get("usd")
     )
 
-    volume5 = number(
+    volume = number(
         (pair.get("volume") or {}).get("m5")
     )
 
@@ -261,47 +291,54 @@ def passes_filters(pair):
     buys = int(number(txns.get("buys")))
     sells = int(number(txns.get("sells")))
 
-    age = age_hours(pair)
+    age = age_minutes(pair)
+
+    if age is None or age > MAX_AGE_MINUTES:
+        return False
 
     if not MIN_MC <= mc <= MAX_MC:
-        return False, "Market Cap"
+        return False
 
     if liquidity < MIN_LIQUIDITY:
-        return False, "Liquidity"
+        return False
 
-    if age is None or age > MAX_AGE_HOURS:
-        return False, "Age"
-
-    if volume5 < MIN_VOLUME_5M:
-        return False, "Volume"
+    if volume < MIN_VOLUME_5M:
+        return False
 
     if buys + sells < MIN_TXNS_5M:
-        return False, "Transactions"
+        return False
 
-    if buys <= sells:
-        return False, "Buy/Sell"
+    if sells == 0:
+        ratio = float("inf") if buys > 0 else 0
+    else:
+        ratio = buys / sells
 
-    # RugCheck score and holders are NOT rejection filters.
+    if ratio < MIN_BUY_SELL_RATIO:
+        return False
 
-    return True, "PASSED"
+    return True
 
 
-def make_alert(pair, mint, report):
+# ==========================================
+# ALERT
+# ==========================================
+
+def make_alert(pair, mint, report, source):
 
     base = pair.get("baseToken") or {}
 
-    name = base.get("name") or "Unknown"
-    symbol = base.get("symbol") or "?"
+    name = base.get("name", "Unknown")
+    symbol = base.get("symbol", "?")
 
     mc = number(
         pair.get("marketCap") or pair.get("fdv")
     )
 
-    liquidity = number(
+    liq = number(
         (pair.get("liquidity") or {}).get("usd")
     )
 
-    volume5 = number(
+    vol = number(
         (pair.get("volume") or {}).get("m5")
     )
 
@@ -310,128 +347,124 @@ def make_alert(pair, mint, report):
     buys = int(number(txns.get("buys")))
     sells = int(number(txns.get("sells")))
 
-    age = age_hours(pair)
+    ratio = buys / sells if sells else "No sells"
+
+    age = age_minutes(pair)
 
     score = extract_score(report)
 
-    top10, largest, dev_pct, holder_count = (
-        extract_holder_info(report)
-    )
+    top10, largest, dev = holder_info(report)
 
-    def pct(value):
-        return (
-            f"{value:.2f}%"
-            if value is not None
-            else "Not available"
-        )
+    def pct(v):
+        return f"{v:.2f}%" if v is not None else "N/A"
 
-    dex_url = pair.get("url") or (
+    dex = pair.get("url") or (
         f"https://dexscreener.com/solana/{mint}"
     )
 
     return (
-        "🚀 DEX SCREENER V10\n\n"
+        "🚀 PUMP.FUN + DEX V11\n\n"
         f"Name: {name}\n"
-        f"Symbol: ${symbol}\n\n"
-        f"Market Cap: {fmt_usd(mc)}\n"
-        f"Liquidity: {fmt_usd(liquidity)}\n"
-        f"5m Volume: {fmt_usd(volume5)}\n"
-        f"5m Transactions: {buys+sells}\n"
+        f"Symbol: ${symbol}\n"
+        f"Source: {source}\n\n"
+        f"Market Cap: ${mc:,.0f}\n"
+        f"Liquidity: ${liq:,.0f}\n"
+        f"5m Volume: ${vol:,.0f}\n"
         f"Buys: {buys}\n"
         f"Sells: {sells}\n"
-        f"Pair Age: {age:.2f} hours\n\n"
+        f"Buy/Sell Ratio: {ratio}\n"
+        f"Transactions: {buys+sells}\n"
+        f"Pair Age: {age:.2f} minutes\n\n"
         "🛡️ RUGCHECK / HOLDERS\n"
-        f"RugCheck Score: {score if score is not None else 'Not available'}\n"
+        f"RugCheck Score: {score}\n"
         f"Top 10 Holders: {pct(top10)}\n"
         f"Largest Holder: {pct(largest)}\n"
-        f"Dev Holding: {pct(dev_pct)}\n"
-        f"Holder Entries: {holder_count}\n\n"
+        f"Dev Holding: {pct(dev)}\n\n"
         f"Contract: {mint}\n\n"
-        f"DEX: {dex_url}\n"
+        f"DEX: {dex}\n"
         f"RugCheck: https://rugcheck.xyz/tokens/{mint}\n"
         f"Pump.fun: https://pump.fun/coin/{mint}"
     )
 
 
+# ==========================================
+# MAIN
+# ==========================================
+
 def main():
 
-    log("DEX SCREENER V10 STARTED")
+    log("PUMP.FUN + DEX V11 STARTED")
 
     if not BOT_TOKEN or not CHAT_ID:
-        log("ERROR: TELEGRAM SECRETS MISSING")
+        log("TELEGRAM SECRETS MISSING")
         return
 
     seen = load_seen()
 
-    profiles = get_solana_profiles()
+    pump_tokens = get_pumpfun_tokens()
+    dex_tokens = get_dex_tokens()
 
-    log(f"Solana profiles: {len(profiles)}")
+    tokens = list(dict.fromkeys(
+        pump_tokens + dex_tokens
+    ))
 
-    checked = set()
+    log(f"Pump.fun tokens: {len(pump_tokens)}")
+    log(f"DexScreener tokens: {len(dex_tokens)}")
+    log(f"Total unique tokens: {len(tokens)}")
+
     alerts = 0
 
-    for profile in profiles:
+    for mint in tokens:
 
-        mint = profile.get("tokenAddress")
-
-        if not mint or mint in checked:
+        if mint in seen:
             continue
-
-        checked.add(mint)
 
         pairs = get_pairs(mint)
 
         if not pairs:
             continue
 
-        pairs = sorted(
-            [
-                p for p in pairs
-                if isinstance(p, dict)
-                and p.get("chainId") == "solana"
-            ],
+        pairs.sort(
             key=lambda p: number(
                 (p.get("liquidity") or {}).get("usd")
             ),
             reverse=True
         )
 
-        if not pairs:
-            continue
-
         pair = pairs[0]
 
-        pair_id = pair.get("pairAddress") or mint
-
-        if pair_id in seen:
-            continue
-
-        passed, reason = passes_filters(pair)
-
-        if not passed:
+        if not passes_filters(pair):
             continue
 
         report = get_rugcheck(mint)
 
+        # Determine discovery source
+        source = (
+            "Pump.fun + DexScreener"
+            if mint in pump_tokens and mint in dex_tokens
+            else "Pump.fun"
+            if mint in pump_tokens
+            else "DexScreener"
+        )
+
         message = make_alert(
             pair,
             mint,
-            report
+            report,
+            source
         )
 
-        if send_telegram(message):
-            seen.add(pair_id)
+        if telegram(message):
+            seen.add(mint)
             alerts += 1
             log(f"ALERT SENT: {mint}")
-        else:
-            log(f"ALERT FAILED: {mint}")
 
-        time.sleep(0.25)
+        time.sleep(0.3)
 
     save_seen(seen)
 
     log(
-        f"DEX SCREENER V10 FINISHED | ALERTS: {alerts}"
+        f"V11 FINISHED | ALERTS: {alerts}"
     )
 
 
